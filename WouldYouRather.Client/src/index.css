@@ -1,3 +1,9 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
   --text: #6b6375;
   --text-h: #08060d;
@@ -10,6 +16,10 @@
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+
+  /* Re-theme Bootstrap's primary color to match our own accent token. */
+  --bs-primary: var(--accent);
+  --bs-primary-rgb: 170, 59, 255;
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -43,6 +53,7 @@
     --social-bg: rgba(47, 48, 58, 0.5);
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+    --bs-primary-rgb: 192, 132, 252;
   }
 
   #social .button-icon {
@@ -50,12 +61,21 @@
   }
 }
 
+/* Bootstrap bakes button-variant colors into variables scoped on the class
+   itself (not the root --bs-primary), so they need overriding directly. */
+.btn-outline-primary {
+  --bs-btn-color: var(--accent);
+  --bs-btn-border-color: var(--accent);
+  --bs-btn-hover-bg: var(--accent);
+  --bs-btn-hover-border-color: var(--accent);
+  --bs-btn-focus-shadow-rgb: var(--bs-primary-rgb);
+  --bs-btn-active-bg: var(--accent);
+  --bs-btn-active-border-color: var(--accent);
+  --bs-btn-disabled-color: var(--accent);
+  --bs-btn-disabled-border-color: var(--accent);
+}
+
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;
   flex-direction: column;

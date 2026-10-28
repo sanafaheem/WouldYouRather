@@ -8,6 +8,11 @@ public sealed class QuestionContentGenerator(Kernel kernel) : IQuestionContentGe
 {
     private const string DefaultWittyComment = "Tough crowd! The votes are in either way.";
 
+    // Gemini is stochastic: a blocked/empty/malformed response on one attempt doesn't mean the
+    // next attempt with the same prompt will fail the same way. Retrying is cheap insurance
+    // against an occasional safety-filtered or malformed response.
+    private const int MaxGenerationAttempts = 3;
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     // Belt-and-suspenders with the prompt instructions below: these are enforced by Gemini's own
@@ -34,28 +39,41 @@ public sealed class QuestionContentGenerator(Kernel kernel) : IQuestionContentGe
             {"question": "...", "optionA": "...", "optionB": "..."}
             """;
 
-        var response = await kernel.InvokePromptAsync<string>(prompt, CreateSafeArguments());
-        var json = StripMarkdownFence(response ?? string.Empty);
+        Exception? lastError = null;
 
-        GeneratedQuestionPayload? payload;
-        try
+        for (var attempt = 1; attempt <= MaxGenerationAttempts; attempt++)
         {
-            payload = JsonSerializer.Deserialize<GeneratedQuestionPayload>(json, JsonOptions);
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidOperationException($"Gemini returned an unparsable question payload: {response}", ex);
+            string? response = null;
+            try
+            {
+                response = await kernel.InvokePromptAsync<string>(prompt, CreateSafeArguments());
+                var json = StripMarkdownFence(response ?? string.Empty);
+                var payload = JsonSerializer.Deserialize<GeneratedQuestionPayload>(json, JsonOptions);
+
+                if (payload is not null &&
+                    !string.IsNullOrWhiteSpace(payload.Question) &&
+                    !string.IsNullOrWhiteSpace(payload.OptionA) &&
+                    !string.IsNullOrWhiteSpace(payload.OptionB))
+                {
+                    return new GeneratedQuestionContent(payload.Question, payload.OptionA, payload.OptionB);
+                }
+
+                lastError = new InvalidOperationException(
+                    $"Gemini returned an incomplete or blocked question payload on attempt {attempt}: {response}");
+            }
+            catch (JsonException ex)
+            {
+                lastError = new InvalidOperationException(
+                    $"Gemini returned an unparsable question payload on attempt {attempt}: {response}", ex);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                lastError = ex;
+            }
         }
 
-        if (payload is null ||
-            string.IsNullOrWhiteSpace(payload.Question) ||
-            string.IsNullOrWhiteSpace(payload.OptionA) ||
-            string.IsNullOrWhiteSpace(payload.OptionB))
-        {
-            throw new InvalidOperationException($"Gemini returned an incomplete question payload: {response}");
-        }
-
-        return new GeneratedQuestionContent(payload.Question, payload.OptionA, payload.OptionB);
+        throw new InvalidOperationException(
+            $"Gemini failed to generate a valid question after {MaxGenerationAttempts} attempts.", lastError);
     }
 
     public async Task<string> GenerateWittyCommentAsync(
@@ -75,17 +93,25 @@ public sealed class QuestionContentGenerator(Kernel kernel) : IQuestionContentGe
             Respond with only the comment text, no quotes, no markdown.
             """;
 
-        try
+        for (var attempt = 1; attempt <= MaxGenerationAttempts; attempt++)
         {
-            var response = await kernel.InvokePromptAsync<string>(prompt, CreateSafeArguments());
-            return string.IsNullOrWhiteSpace(response) ? DefaultWittyComment : response.Trim();
+            try
+            {
+                var response = await kernel.InvokePromptAsync<string>(prompt, CreateSafeArguments());
+                if (!string.IsNullOrWhiteSpace(response))
+                {
+                    return response.Trim();
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // try again below
+            }
         }
-        catch (Exception)
-        {
-            // Gemini being unavailable (or the response being blocked by safety filters)
-            // shouldn't fail a vote that already succeeded in Mongo.
-            return DefaultWittyComment;
-        }
+
+        // Gemini being unavailable, or every attempt coming back empty/blocked,
+        // shouldn't fail a vote that already succeeded in Mongo.
+        return DefaultWittyComment;
     }
 
     private static KernelArguments CreateSafeArguments() =>

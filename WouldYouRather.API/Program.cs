@@ -63,7 +63,7 @@ builder.Services.AddScoped<IQuestionService, QuestionService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowClient", policy =>
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins("http://localhost:5180")
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
