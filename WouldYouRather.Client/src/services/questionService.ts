@@ -23,3 +23,17 @@ export function submitVote(request: VoteRequest): Promise<VoteResponse> {
     body: JSON.stringify(request),
   }).then((res) => parseJsonOrThrow<VoteResponse>(res))
 }
+
+export function getResults(
+  questionId: string,
+  previousPercentA: number,
+  previousPercentB: number,
+): Promise<VoteResponse> {
+  const params = new URLSearchParams({
+    previousPercentA: String(previousPercentA),
+    previousPercentB: String(previousPercentB),
+  })
+  return fetch(`${API_BASE_URL}/api/question/${questionId}/results?${params}`).then((res) =>
+    parseJsonOrThrow<VoteResponse>(res),
+  )
+}

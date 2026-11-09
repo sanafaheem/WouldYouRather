@@ -1,12 +1,18 @@
 import {useEffect, useState} from "react";
-import { getTodayQuestion, submitVote } from "../services/questionService";
+import { getTodayQuestion, submitVote, getResults } from "../services/questionService";
 import type { Question, VoteResponse } from "../types/question";
+
+interface SavedVote extends VoteResponse {
+	questionId: string;
+	option: "A" | "B";
+}
 export default function Home() {
 
 	const [question, setQuestion] = useState<Question | null>(null);
 	const [voteResponse, setVoteResponse] = useState<VoteResponse | null>(null);
 	const [hasVoted, setHasVoted] = useState(false);
 	const [submittedVote, setSubmittedVote] = useState<"A" | "B" | null>(null);
+	
 	useEffect(() => {
 		let isMounted = false; // Flag to track if the component is still mounted
 		getTodayQuestion().then((question) => {
@@ -24,12 +30,51 @@ export default function Home() {
 		};
 	}, []);
 
+	// Once we know today's question, check if we already voted on it (saved under its id)
+	// and, if so, refresh the percentages/comment from the server.
+	useEffect(() => {
+		if (!question) return;
+
+		const saved = localStorage.getItem(`vote-${question.id}`);
+		if (!saved) return;
+
+		let parsed: SavedVote;
+		try {
+			parsed = JSON.parse(saved);
+		} catch {
+			return;
+		}
+
+		if (parsed.questionId !== question.id) return;
+
+		setHasVoted(true);
+		setSubmittedVote(parsed.option);
+		setVoteResponse(parsed);
+
+		getResults(question.id, parsed.percentA, parsed.percentB).then((results) => {
+			const updated: SavedVote = {
+				...parsed,
+				percentA: results.percentA,
+				percentB: results.percentB,
+				wittyComment: results.wittyComment ?? parsed.wittyComment,
+			};
+			setVoteResponse(updated);
+			localStorage.setItem(`vote-${question.id}`, JSON.stringify(updated));
+		}).catch((error) => {
+			console.error("Error fetching fresh results:", error);
+		});
+	}, [question]);
+
 	function handleVote(questionID: string, option: 'A' | 'B') {
 		setHasVoted(true);
 		setSubmittedVote(option);
 		submitVote({ questionId: questionID, option: option }).then((response) => {
 			setVoteResponse(response);
-			// Handle successful vote submission if needed
+			localStorage.setItem(`vote-${questionID}`, JSON.stringify({
+				questionId: questionID,
+				option,
+				...response,
+			}));
 		}).catch((error) => {
 			setHasVoted(false); // Reset the voting state if there's an error
 			setSubmittedVote(null); // Reset the submitted vote if there's an error

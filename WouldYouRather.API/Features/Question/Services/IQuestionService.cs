@@ -7,4 +7,6 @@ public interface IQuestionService
 	Task<QuestionDto?> GetQuestionOfTheDayAsync();
 
 	Task<VoteResponseDto> VoteQuestionAsync(VoteRequestDto voteRequest);
+
+	Task<VoteResponseDto> GetResultsAsync(string questionId, int previousPercentA, int previousPercentB);
 }

@@ -48,9 +48,7 @@ public sealed class QuestionService(
             throw new InvalidOperationException($"Question '{voteRequest.QuestionId}' was not found.");
         }
 
-        var totalVotes = question.VoteForA + question.VoteForB;
-        var percentA = totalVotes == 0 ? 0 : (int)Math.Round(question.VoteForA * 100.0 / totalVotes);
-        var percentB = totalVotes == 0 ? 0 : (int)Math.Round(question.VoteForB * 100.0 / totalVotes);
+        var (percentA, percentB) = ComputePercentages(question.VoteForA, question.VoteForB);
 
         var wittyComment = await contentGenerator.GenerateWittyCommentAsync(
             question.QuestionDescription, question.OptionA, percentA, question.OptionB, percentB);
@@ -63,5 +61,44 @@ public sealed class QuestionService(
             PercentB = percentB,
             WittyComment = wittyComment
         };
+    }
+
+    public async Task<VoteResponseDto> GetResultsAsync(string questionId, int previousPercentA, int previousPercentB)
+    {
+        var question = await questions.Find(q => q.Id == questionId).FirstOrDefaultAsync();
+        if (question is null)
+        {
+            throw new InvalidOperationException($"Question '{questionId}' was not found.");
+        }
+
+        var (percentA, percentB) = ComputePercentages(question.VoteForA, question.VoteForB);
+
+        var previousLeader = previousPercentA >= previousPercentB ? "A" : "B";
+        var currentLeader = percentA >= percentB ? "A" : "B";
+        var hasFlipped = previousLeader != currentLeader;
+
+        string? wittyComment = null;
+        if (hasFlipped)
+        {
+            wittyComment = await contentGenerator.GenerateWittyCommentAsync(
+                question.QuestionDescription, question.OptionA, percentA, question.OptionB, percentB);
+        }
+
+        return new VoteResponseDto
+        {
+            VotesA = question.VoteForA,
+            VotesB = question.VoteForB,
+            PercentA = percentA,
+            PercentB = percentB,
+            WittyComment = wittyComment
+        };
+    }
+
+    private static (int PercentA, int PercentB) ComputePercentages(int votesA, int votesB)
+    {
+        var totalVotes = votesA + votesB;
+        var percentA = totalVotes == 0 ? 0 : (int)Math.Round(votesA * 100.0 / totalVotes);
+        var percentB = totalVotes == 0 ? 0 : (int)Math.Round(votesB * 100.0 / totalVotes);
+        return (percentA, percentB);
     }
 }

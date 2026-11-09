@@ -6,5 +6,5 @@ public class VoteResponseDto
     public int VotesB { get; set; }
     public int PercentA { get; set; }
     public int PercentB { get; set; }
-    public string WittyComment { get; set; } = "";
+    public string? WittyComment { get; set; }
 }

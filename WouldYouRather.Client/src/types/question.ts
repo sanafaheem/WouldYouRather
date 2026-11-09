@@ -17,5 +17,5 @@ export interface VoteResponse {
   votesB: number
   percentA: number
   percentB: number
-  wittyComment: string
+  wittyComment: string | null
 }

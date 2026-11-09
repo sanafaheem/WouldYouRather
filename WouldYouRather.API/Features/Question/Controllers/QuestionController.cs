@@ -21,4 +21,11 @@ public class QuestionController(IQuestionService questionService) : ControllerBa
         var result = await questionService.VoteQuestionAsync(voteRequest);
         return Ok(result);
     }
+
+	[HttpGet("{id}/results")]
+	public async Task<IActionResult> GetResults(string id, [FromQuery] int previousPercentA, [FromQuery] int previousPercentB)
+	{
+		var result = await questionService.GetResultsAsync(id, previousPercentA, previousPercentB);
+		return Ok(result);
+	}
 }
